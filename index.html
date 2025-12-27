@@ -290,9 +290,10 @@
             </div>
             
             <div class="controls-panel">
-                <button class="ctrl-btn" id="btn-sound" onclick="SoundManager.toggleMute()" ontouchstart="SoundManager.toggleMute(); event.preventDefault()">🔊</button>
-                <button class="ctrl-btn" id="btn-menu" onclick="toggleLevelMenu()" style="background-color: #795548;" ontouchstart="toggleLevelMenu(); event.preventDefault()">☰</button>
-                <button class="ctrl-btn" id="btn-pause" onclick="togglePause()" ontouchstart="togglePause(); event.preventDefault()">⏸️</button>
+                <!-- 修复：移除了行内 ontouchstart，避免与 JS 中的全局 touchstart 监听器冲突导致双重触发 -->
+                <button class="ctrl-btn" id="btn-sound" onclick="SoundManager.toggleMute()">🔊</button>
+                <button class="ctrl-btn" id="btn-menu" onclick="toggleLevelMenu()" style="background-color: #795548;">☰</button>
+                <button class="ctrl-btn" id="btn-pause" onclick="togglePause()">⏸️</button>
             </div>
         </div>
 
@@ -465,8 +466,8 @@
             peashooter: { cost: 100, health: 300, type: 'peashooter', icon: '🌱', color: '#4caf50', cooldown: 100 },
             wallnut:    { cost: 50,  health: 2000, type: 'wallnut',    icon: '🌰', color: '#795548', cooldown: 300 },
             snowpea:    { cost: 175, health: 300, type: 'snowpea',    icon: '❄️', color: '#29b6f6', cooldown: 100 },
-            jalapeno:   { cost: 125, health: 1000, type: 'jalapeno',   icon: '🌶️', color: '#f44336', cooldown: 500, instant: true, damage: 1800 },
-            cherrybomb: { cost: 150, health: 1000, type: 'cherrybomb', icon: '🍒', color: '#880e4f', cooldown: 500, instant: true, damage: 1800 }
+            jalapeno:   { cost: 125, health: 1000, type: 'jalapeno',   icon: '🌶️', color: '#f44336', cooldown: 400, instant: true, damage: 1800 },
+            cherrybomb: { cost: 150, health: 1000, type: 'cherrybomb', icon: '🍒', color: '#880e4f', cooldown: 400, instant: true, damage: 1800 }
         };
 
         const LEVELS = [
@@ -685,21 +686,18 @@
 
             handleZombieSpawning(lvl, timeFactor);
 
-            // --- 修复点 1 & 2：扫帚逻辑 ---
             mowers.forEach(m => {
                 if (m.active) {
                     m.x += 15 * timeFactor; m.angle += 0.5 * timeFactor;
                     
-                    // 修复：扫帚飞出屏幕后设为非激活，防止影响后续判定
                     if (m.x > canvas.width) {
                         m.active = false;
                     }
 
                     zombies.forEach(z => {
                         if (z.row === m.row && Math.abs(z.x - m.x) < 50 && z.health > 0) {
-                            // 修复：直接处死僵尸 (后续 updateZombies 会处理移除和加分)
                             z.health = 0; 
-                            createParticles(z.x + 50, z.y + 50, '#9c27b0', 15); // 增加一点特效
+                            createParticles(z.x + 50, z.y + 50, '#9c27b0', 15); 
                         }
                     });
                 }
