@@ -74,6 +74,31 @@
             transition: width 0.3s;
         }
 
+        /* 顶部控制按钮区 */
+        .controls-panel {
+            margin-left: auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .ctrl-btn {
+            background-color: #558b2f;
+            color: white;
+            border: 2px solid #33691e;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .ctrl-btn:hover { filter: brightness(1.1); }
+        .ctrl-btn:active { transform: translateY(2px); }
+        .ctrl-btn.paused { background-color: #fbc02d; color: #333; }
+
         /* 植物卡片 */
         .card-container {
             display: flex;
@@ -149,7 +174,7 @@
             background-position: 40px 0, 40px 50px, 90px -50px, -10px 0px;
         }
 
-        /* 覆盖层 (游戏结束/过关) */
+        /* 覆盖层 (游戏结束/过关/开始) */
         .overlay-screen {
             position: absolute;
             top: 0;
@@ -174,9 +199,9 @@
         
         h2 { color: #ffeb3b; margin-top: 0; text-shadow: 2px 2px 0 #000; }
 
-        button {
-            padding: 12px 30px;
-            font-size: 20px;
+        .big-btn {
+            padding: 15px 40px;
+            font-size: 24px;
             background: linear-gradient(to bottom, #8bc34a, #558b2f);
             color: white;
             border: 2px solid #33691e;
@@ -188,8 +213,8 @@
             text-transform: uppercase;
         }
 
-        button:hover { filter: brightness(1.1); }
-        button:active { transform: translateY(4px); box-shadow: 0 0 0 #1b5e20; }
+        .big-btn:hover { filter: brightness(1.1); }
+        .big-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #1b5e20; }
 
         /* 浮动消息 */
         #message {
@@ -246,9 +271,9 @@
             </div>
         </div>
         
-        <div style="margin-left:auto; font-size: 13px; color: #aaa; text-align: right;">
-            <div>点击收集阳光</div>
-            <div>每行左侧有一次性魔法扫帚</div>
+        <div class="controls-panel">
+            <button class="ctrl-btn" id="btn-pause" onclick="togglePause()">⏸️ 暂停</button>
+            <button class="ctrl-btn" id="btn-restart" onclick="confirmRestart()">🔄 重开</button>
         </div>
     </div>
 
@@ -256,22 +281,32 @@
         <canvas id="gameCanvas" width="940" height="520"></canvas>
         <div id="message"></div>
         
+        <!-- 开始界面 -->
+        <div id="start-screen" class="overlay-screen" style="display: flex;">
+            <h1 style="color: #76ff03; text-shadow: 4px 4px 0 #1b5e20;">植物大战冰魔女</h1>
+            <h2 style="margin-bottom: 40px;">保卫家园，击退魔女军团!</h2>
+            <button class="big-btn" onclick="startGame()">开始游戏</button>
+        </div>
+
+        <!-- 游戏结束 -->
         <div id="game-over-screen" class="overlay-screen">
             <h1>家园被入侵!</h1>
             <h2>邪恶的冰魔女吃掉了你的脑子</h2>
-            <button onclick="restartLevel()">重玩本关</button>
+            <button class="big-btn" onclick="restartLevel()">重玩本关</button>
         </div>
 
+        <!-- 关卡完成 -->
         <div id="level-clear-screen" class="overlay-screen">
             <h1 style="color: #76ff03;">关卡完成!</h1>
             <h2 id="level-clear-msg">抵御了所有进攻</h2>
-            <button onclick="nextLevel()">下一关</button>
+            <button class="big-btn" onclick="nextLevel()">下一关</button>
         </div>
         
+        <!-- 通关 -->
         <div id="victory-screen" class="overlay-screen">
             <h1 style="color: #ffeb3b;">恭喜通关!</h1>
             <h2>你守护了花园的和平</h2>
-            <button onclick="resetGame()">重新开始</button>
+            <button class="big-btn" onclick="resetGame()">重新开始</button>
         </div>
     </div>
 
@@ -284,7 +319,6 @@
         const GAME_SPEED_SCALE = 0.7; 
 
         // 关卡配置 
-        // 降低了基础 spawnInterval，让前期节奏稍微快一点，但主要依靠动态逻辑
         const LEVELS = [
             { id: 1, goal: 15, zombies: ['normal'], spawnInterval: 400, msg: "第1关: 急速试炼" }, 
             { id: 2, goal: 30, zombies: ['normal', 'cone'], spawnInterval: 300, msg: "第2关: 双重麻烦" },
@@ -326,7 +360,9 @@
             zombieSpawnTimer: 0,
             isGameOver: false,
             isLevelClear: false,
-            paused: false
+            paused: false,
+            userPaused: false, // 用户手动暂停
+            hasStarted: false  // 游戏是否已开始
         };
 
         let selectedPlant = null;
@@ -345,8 +381,16 @@
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             canvas.addEventListener('mousedown', handleCanvasClick);
-            resetGame();
+            
+            // 初始绘制一次背景，防止空白
+            drawBackground();
         };
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            gameState.hasStarted = true;
+            resetGame();
+        }
 
         function resetGame() {
             gameState.levelIndex = 0;
@@ -361,8 +405,9 @@
             gameState.isGameOver = false;
             gameState.isLevelClear = false;
             gameState.paused = false;
+            gameState.userPaused = false;
+            updatePauseButton();
             
-            // 初始立刻生成
             gameState.zombieSpawnTimer = 0; 
             
             lastTime = performance.now();
@@ -403,6 +448,47 @@
                 startLevel();
             }
         }
+        
+        function togglePause() {
+            if (!gameState.hasStarted || gameState.isGameOver || gameState.isLevelClear) return;
+            
+            gameState.userPaused = !gameState.userPaused;
+            gameState.paused = gameState.userPaused;
+            
+            updatePauseButton();
+
+            if (!gameState.paused) {
+                // 恢复游戏时重置 lastTime，防止 delta time 过大导致瞬间移动
+                lastTime = performance.now();
+                gameLoop(performance.now());
+            } else {
+                // 暂停时绘制遮罩
+                drawScene(); // 保持当前画面
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "60px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("已暂停", canvas.width/2, canvas.height/2);
+            }
+        }
+        
+        function updatePauseButton() {
+            const btn = document.getElementById('btn-pause');
+            if (gameState.userPaused) {
+                btn.innerHTML = "▶️ 继续";
+                btn.classList.add('paused');
+            } else {
+                btn.innerHTML = "⏸️ 暂停";
+                btn.classList.remove('paused');
+            }
+        }
+
+        function confirmRestart() {
+            if (confirm("确定要重新开始游戏吗？")) {
+                resetGame();
+            }
+        }
 
         function gameLoop(timestamp) {
             if (gameState.paused) return;
@@ -433,26 +519,22 @@
                 spawnSun(Math.random() * (canvas.width - 200) + 100, -50, 50, true);
             }
 
-            // 3. 僵尸生成逻辑 (重构核心)
-            // 计算当前的动态刷新间隔：基础间隔 - (击杀数 * 加速因子)
+            // 3. 僵尸生成逻辑
             let dynamicInterval = levelConfig.spawnInterval - (gameState.zombiesKilled * 15);
-            dynamicInterval = Math.max(50, dynamicInterval); // 最快间隔不低于50帧(约0.8秒)
+            dynamicInterval = Math.max(50, dynamicInterval); 
 
             if (gameState.zombiesSpawned < levelConfig.goal) {
-                // 如果场上没有僵尸，强制立刻生成 (Min 1 规则)
                 if (zombies.length === 0) {
                     gameState.zombieSpawnTimer = 0;
                 }
 
                 gameState.zombieSpawnTimer -= timeFactor;
                 
-                // 仅当场上僵尸少于10只时才生成 (Max 10 规则)
                 if (gameState.zombieSpawnTimer <= 0 && zombies.length < 10) {
                     const type = pickZombieType(levelConfig.zombies);
                     spawnZombie(type);
                     gameState.zombiesSpawned++;
                     
-                    // 重置倒计时：动态间隔 + 随机波动
                     gameState.zombieSpawnTimer = dynamicInterval + Math.random() * 50;
                 }
             } else if (zombies.length === 0) {
@@ -524,7 +606,6 @@
                 }
                 if (!z.isEating) z.x -= z.speed * timeFactor; 
 
-                // 扫帚触发
                 if (z.x < GRID_OFFSET_X - 20) {
                     let mower = mowers[z.row];
                     if (!mower.triggered) {
@@ -535,7 +616,6 @@
                     }
                 }
                 
-                // 吃植物
                 let eatingPlant = null;
                 for (let p of plants) {
                     if (p.row === z.row && z.x < p.x + 50 && z.x > p.x - 20) {
@@ -556,24 +636,18 @@
 
                 if (z.hitEffect > 0) z.hitEffect -= timeFactor;
 
-                // 死亡逻辑
                 if (z.health <= 0) {
                     zombies.splice(i, 1);
                     gameState.zombiesKilled++;
                     createParticles(z.x + 50, z.y + 50, '#555', 8);
-                    
-                    // 核心修改：死亡立即刷新下一只
-                    // 将倒计时清零，如果符合数量条件，下一帧就会生成
                     gameState.zombieSpawnTimer = 0; 
                 }
             }
 
-            // 清理植物
             for (let i = plants.length - 1; i >= 0; i--) {
                 if (plants[i].health <= 0) plants.splice(i, 1);
             }
 
-            // 阳光移动
             for (let i = sunItems.length - 1; i >= 0; i--) {
                 let s = sunItems[i];
                 if (s.isFalling && s.y < s.targetY) s.y += 2 * timeFactor;
@@ -581,7 +655,6 @@
                 if (s.lifeTime > 800) sunItems.splice(i, 1);
             }
             
-            // 粒子
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx * timeFactor;
