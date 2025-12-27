@@ -269,31 +269,30 @@
             </div>
             
             <div class="card-container">
-                <div class="card" id="card-sunflower" onclick="selectPlant('sunflower')">
+                <div class="card" id="card-sunflower" onclick="selectPlant('sunflower')" ontouchstart="selectPlant('sunflower'); event.preventDefault()">
                     <div class="card-icon">🌻</div><div class="card-cost">50</div><div class="cooldown-mask"></div>
                 </div>
-                <div class="card" id="card-peashooter" onclick="selectPlant('peashooter')">
+                <div class="card" id="card-peashooter" onclick="selectPlant('peashooter')" ontouchstart="selectPlant('peashooter'); event.preventDefault()">
                     <div class="card-icon">🌱</div><div class="card-cost">100</div><div class="cooldown-mask"></div>
                 </div>
-                <div class="card" id="card-wallnut" onclick="selectPlant('wallnut')">
+                <div class="card" id="card-wallnut" onclick="selectPlant('wallnut')" ontouchstart="selectPlant('wallnut'); event.preventDefault()">
                     <div class="card-icon">🌰</div><div class="card-cost">50</div><div class="cooldown-mask"></div>
                 </div>
-                <div class="card" id="card-snowpea" onclick="selectPlant('snowpea')">
+                <div class="card" id="card-snowpea" onclick="selectPlant('snowpea')" ontouchstart="selectPlant('snowpea'); event.preventDefault()">
                     <div class="card-icon">❄️</div><div class="card-cost">175</div><div class="cooldown-mask"></div>
                 </div>
-                <div class="card" id="card-jalapeno" onclick="selectPlant('jalapeno')">
+                <div class="card" id="card-jalapeno" onclick="selectPlant('jalapeno')" ontouchstart="selectPlant('jalapeno'); event.preventDefault()">
                     <div class="card-icon">🌶️</div><div class="card-cost">125</div><div class="cooldown-mask"></div>
                 </div>
-                <div class="card" id="card-cherrybomb" onclick="selectPlant('cherrybomb')">
+                <div class="card" id="card-cherrybomb" onclick="selectPlant('cherrybomb')" ontouchstart="selectPlant('cherrybomb'); event.preventDefault()">
                     <div class="card-icon">🍒</div><div class="card-cost">150</div><div class="cooldown-mask"></div>
                 </div>
             </div>
             
             <div class="controls-panel">
-                <!-- 修复：移除了行内 ontouchstart，避免与 JS 中的全局 touchstart 监听器冲突导致双重触发 -->
-                <button class="ctrl-btn" id="btn-sound" onclick="SoundManager.toggleMute()">🔊</button>
-                <button class="ctrl-btn" id="btn-menu" onclick="toggleLevelMenu()" style="background-color: #795548;">☰</button>
-                <button class="ctrl-btn" id="btn-pause" onclick="togglePause()">⏸️</button>
+                <button class="ctrl-btn" id="btn-sound" onclick="SoundManager.toggleMute()" ontouchstart="SoundManager.toggleMute(); event.preventDefault()">🔊</button>
+                <button class="ctrl-btn" id="btn-menu" onclick="toggleLevelMenu()" style="background-color: #795548;" ontouchstart="toggleLevelMenu(); event.preventDefault()">☰</button>
+                <button class="ctrl-btn" id="btn-pause" onclick="togglePause()" ontouchstart="togglePause(); event.preventDefault()">⏸️</button>
             </div>
         </div>
 
@@ -315,8 +314,8 @@
                 <h1>GAME OVER</h1>
                 <h2>脑子被吃掉了...</h2>
                 <div style="display:flex;">
-                    <button class="big-btn" onclick="restartLevel()">重试</button>
-                    <button class="big-btn secondary-btn" onclick="showLevelMenu()">菜单</button>
+                    <button class="big-btn" onclick="restartLevel()" ontouchstart="restartLevel(); event.preventDefault()">重试</button>
+                    <button class="big-btn secondary-btn" onclick="showLevelMenu()" ontouchstart="showLevelMenu(); event.preventDefault()">菜单</button>
                 </div>
             </div>
 
@@ -325,8 +324,8 @@
                 <h1 style="color: #ffeb3b;">关卡完成!</h1>
                 <h2 id="level-clear-msg"></h2>
                 <div style="display:flex;">
-                    <button class="big-btn" onclick="nextLevel()" id="btn-next-level">下一关</button>
-                    <button class="big-btn secondary-btn" onclick="showLevelMenu()">菜单</button>
+                    <button class="big-btn" onclick="nextLevel()" id="btn-next-level" ontouchstart="nextLevel(); event.preventDefault()">下一关</button>
+                    <button class="big-btn secondary-btn" onclick="showLevelMenu()" ontouchstart="showLevelMenu(); event.preventDefault()">菜单</button>
                 </div>
             </div>
         </div>
@@ -521,9 +520,8 @@
             canvas.addEventListener('mousedown', handleInput);
             canvas.addEventListener('touchstart', handleInput, {passive: false});
             
-            // UI Button Touches
-            document.querySelectorAll('.card').forEach(c => c.addEventListener('touchstart', (e)=>{e.preventDefault(); c.click()}));
-            document.querySelectorAll('button').forEach(b => b.addEventListener('touchstart', (e)=>{e.preventDefault(); b.click()}));
+            // 修复：移除之前的 querySelectorAll 代码，改为在 HTML 中直接绑定，防止双重触发或不触发
+            // UI Button Touches handled in HTML via ontouchstart
 
             window.addEventListener('resize', fitToScreen);
             fitToScreen(); 
@@ -547,7 +545,9 @@
                 if (lvl.mode === 'boss') btn.classList.add('boss-level');
                 if (lvl.mode === 'endless') btn.classList.add('endless-level');
                 btn.innerHTML = lvl.name;
+                // 同时绑定 click 和 touchstart 确保响应
                 btn.onclick = () => { SoundManager.init(); startLevel(index); }; 
+                btn.ontouchstart = (e) => { e.preventDefault(); SoundManager.init(); startLevel(index); };
                 grid.appendChild(btn);
             });
         }
