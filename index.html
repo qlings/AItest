@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植物大战冰魔女</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* 顶部UI栏 */
+        #ui-bar {
+            background-color: #3e2723;
+            border: 3px solid #5d4037;
+            border-radius: 12px;
+            padding: 8px 15px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            z-index: 10;
+            min-width: 800px;
+        }
+
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-right: 20px;
+        }
+
+        #sun-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffeb3b;
+            background: rgba(0,0,0,0.4);
+            padding: 4px 12px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #fbc02d;
+        }
+
+        #level-display {
+            font-size: 16px;
+            color: #b3e5fc;
+        }
+
+        #progress-bar-container {
+            width: 150px;
+            height: 10px;
+            background: #444;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #76ff03;
+            transition: width 0.3s;
+        }
+
+        /* 植物卡片 */
+        .card-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .card {
+            background-color: #757575;
+            border: 2px solid #424242;
+            border-radius: 6px;
+            width: 65px;
+            height: 85px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+            position: relative;
+        }
+
+        .card:hover { transform: translateY(-2px); }
+        .card:active { transform: translateY(1px); }
+        
+        .card.selected {
+            border-color: #ffff00;
+            box-shadow: 0 0 12px #ffff00;
+            background-color: #9e9e9e;
+            transform: scale(1.05);
+        }
+
+        .card.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+        
+        /* 冷却遮罩 */
+        .cooldown-mask {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%;
+            background-color: rgba(0, 0, 0, 0.7);
+            transition: height 0.1s linear;
+            border-radius: 4px;
+        }
+
+        .card-icon { font-size: 32px; z-index: 2; }
+        .card-cost { font-size: 12px; font-weight: bold; margin-top: 2px; color: #fff; text-shadow: 1px 1px 0 #000; z-index: 2; }
+
+        /* 游戏区域 */
+        #game-wrapper {
+            position: relative;
+            border: 6px solid #5d4037;
+            border-radius: 4px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            background-color: #000; /* 背景黑底 */
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+            background-color: #4caf50;
+            /* 恢复CSS背景纹理，并向右偏移40px以避开左侧泥土路 */
+            background-image: 
+                linear-gradient(45deg, #43a047 25%, transparent 25%), 
+                linear-gradient(-45deg, #43a047 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #43a047 75%), 
+                linear-gradient(-45deg, transparent 75%, #43a047 75%);
+            background-size: 100px 100px;
+            background-position: 40px 0, 40px 50px, 90px -50px, -10px 0px;
+        }
+
+        /* 覆盖层 (游戏结束/过关) */
+        .overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none; /* flex */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            color: #f44336;
+            font-size: 50px;
+            margin: 0 0 10px 0;
+            text-shadow: 3px 3px 0 #000;
+        }
+        
+        h2 { color: #ffeb3b; margin-top: 0; text-shadow: 2px 2px 0 #000; }
+
+        button {
+            padding: 12px 30px;
+            font-size: 20px;
+            background: linear-gradient(to bottom, #8bc34a, #558b2f);
+            color: white;
+            border: 2px solid #33691e;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #1b5e20;
+            transition: transform 0.1s;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        button:hover { filter: brightness(1.1); }
+        button:active { transform: translateY(4px); box-shadow: 0 0 0 #1b5e20; }
+
+        /* 浮动消息 */
+        #message {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 0 0 10px #ff00de, 3px 3px 0 #000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+            z-index: 50;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-bar">
+        <div class="info-panel">
+            <div id="sun-display">☀️ <span id="sun-count">500</span></div>
+            <div id="level-display">第 <span id="current-level">1</span> 关</div>
+            <div id="progress-bar-container" title="关卡进度">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+        
+        <div class="card-container">
+            <div class="card" id="card-sunflower" onclick="selectPlant('sunflower')">
+                <div class="card-icon">🌻</div>
+                <div class="card-cost">50</div>
+                <div class="cooldown-mask"></div>
+            </div>
+            
+            <div class="card" id="card-peashooter" onclick="selectPlant('peashooter')">
+                <div class="card-icon">🌱</div>
+                <div class="card-cost">100</div>
+                <div class="cooldown-mask"></div>
+            </div>
+
+            <div class="card" id="card-wallnut" onclick="selectPlant('wallnut')">
+                <div class="card-icon">🌰</div>
+                <div class="card-cost">50</div>
+                <div class="cooldown-mask"></div>
+            </div>
+
+            <div class="card" id="card-snowpea" onclick="selectPlant('snowpea')">
+                <div class="card-icon">❄️</div>
+                <div class="card-cost">175</div>
+                <div class="cooldown-mask"></div>
+            </div>
+        </div>
+        
+        <div style="margin-left:auto; font-size: 13px; color: #aaa; text-align: right;">
+            <div>点击收集阳光</div>
+            <div>每行左侧有一次性魔法扫帚</div>
+        </div>
+    </div>
+
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="940" height="520"></canvas>
+        <div id="message"></div>
+        
+        <div id="game-over-screen" class="overlay-screen">
+            <h1>家园被入侵!</h1>
+            <h2>邪恶的冰魔女吃掉了你的脑子</h2>
+            <button onclick="restartLevel()">重玩本关</button>
+        </div>
+
+        <div id="level-clear-screen" class="overlay-screen">
+            <h1 style="color: #76ff03;">关卡完成!</h1>
+            <h2 id="level-clear-msg">抵御了所有进攻</h2>
+            <button onclick="nextLevel()">下一关</button>
+        </div>
+        
+        <div id="victory-screen" class="overlay-screen">
+            <h1 style="color: #ffeb3b;">恭喜通关!</h1>
+            <h2>你守护了花园的和平</h2>
+            <button onclick="resetGame()">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 游戏配置 ---
+        const CELL_SIZE = 100;
+        const GRID_OFFSET_X = 40; 
+        const GRID_ROWS = 5;
+        const GRID_COLS = 9;
+        const GAME_SPEED_SCALE = 0.7; 
+
+        // 关卡配置 
+        // 降低了基础 spawnInterval，让前期节奏稍微快一点，但主要依靠动态逻辑
+        const LEVELS = [
+            { id: 1, goal: 15, zombies: ['normal'], spawnInterval: 400, msg: "第1关: 急速试炼" }, 
+            { id: 2, goal: 30, zombies: ['normal', 'cone'], spawnInterval: 300, msg: "第2关: 双重麻烦" },
+            { id: 3, goal: 50, zombies: ['normal', 'cone', 'bucket'], spawnInterval: 250, msg: "第3关: 钢铁洪流" }
+        ];
+
+        // 僵尸生成权重
+        const ZOMBIE_WEIGHTS = {
+            'normal': 70, 
+            'cone': 20,    
+            'bucket': 10  
+        };
+
+        const PLANTS_INFO = {
+            sunflower:  { cost: 50,  health: 300, type: 'sunflower',  icon: '🌻', color: '#fbc02d', cooldown: 200 },
+            peashooter: { cost: 100, health: 300, type: 'peashooter', icon: '🌱', color: '#4caf50', cooldown: 100 },
+            wallnut:    { cost: 50,  health: 2000, type: 'wallnut',    icon: '🌰', color: '#795548', cooldown: 500 },
+            snowpea:    { cost: 175, health: 300, type: 'snowpea',    icon: '❄️', color: '#29b6f6', cooldown: 100 }
+        };
+
+        const ZOMBIES_INFO = {
+            normal: { hp: 100, speed: 0.3, color: '#212121', hat: null },
+            cone:   { hp: 300, speed: 0.3, color: '#ff9800', hat: 'cone' }, 
+            bucket: { hp: 800, speed: 0.3, color: '#bdbdbd', hat: 'bucket' }
+        };
+
+        // --- 全局变量 ---
+        let canvas, ctx;
+        let gameLoopId;
+        
+        let lastTime = 0;
+        let globalTimer = 0; 
+        
+        let gameState = {
+            sun: 500, 
+            levelIndex: 0,
+            zombiesKilled: 0,
+            zombiesSpawned: 0,
+            zombieSpawnTimer: 0,
+            isGameOver: false,
+            isLevelClear: false,
+            paused: false
+        };
+
+        let selectedPlant = null;
+        let plants = [];
+        let zombies = [];
+        let projectiles = [];
+        let sunItems = [];
+        let particles = [];
+        let mowers = [];
+
+        let cooldowns = {
+            sunflower: 0, peashooter: 0, wallnut: 0, snowpea: 0
+        };
+
+        window.onload = function() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            canvas.addEventListener('mousedown', handleCanvasClick);
+            resetGame();
+        };
+
+        function resetGame() {
+            gameState.levelIndex = 0;
+            startLevel();
+        }
+
+        function startLevel() {
+            const currentLevelConfig = LEVELS[gameState.levelIndex];
+            gameState.sun = 500; 
+            gameState.zombiesKilled = 0;
+            gameState.zombiesSpawned = 0;
+            gameState.isGameOver = false;
+            gameState.isLevelClear = false;
+            gameState.paused = false;
+            
+            // 初始立刻生成
+            gameState.zombieSpawnTimer = 0; 
+            
+            lastTime = performance.now();
+            globalTimer = 0;
+
+            plants = [];
+            zombies = [];
+            projectiles = [];
+            sunItems = [];
+            particles = [];
+            
+            mowers = [];
+            for(let i=0; i<GRID_ROWS; i++) {
+                mowers.push({ row: i, x: 0, active: false, triggered: false, angle: 0 });
+            }
+
+            for(let key in cooldowns) cooldowns[key] = 0;
+
+            document.querySelectorAll('.overlay-screen').forEach(el => el.style.display = 'none');
+            updateUI();
+            
+            showMessage(currentLevelConfig.msg);
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoop(performance.now());
+        }
+
+        function restartLevel() {
+            startLevel();
+        }
+
+        function nextLevel() {
+            gameState.levelIndex++;
+            if (gameState.levelIndex >= LEVELS.length) {
+                document.getElementById('level-clear-screen').style.display = 'none';
+                document.getElementById('victory-screen').style.display = 'flex';
+            } else {
+                startLevel();
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (gameState.paused) return;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1); 
+            lastTime = timestamp;
+            const timeFactor = (dt * 60) * GAME_SPEED_SCALE;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateLogic(timeFactor);
+            drawScene();
+
+            if (!gameState.isGameOver && !gameState.isLevelClear) {
+                gameLoopId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function updateLogic(timeFactor) {
+            globalTimer += timeFactor;
+            const levelConfig = LEVELS[gameState.levelIndex];
+
+            // 1. 冷却更新
+            for(let key in cooldowns) {
+                if(cooldowns[key] > 0) cooldowns[key] = Math.max(0, cooldowns[key] - timeFactor);
+            }
+
+            // 2. 阳光生成
+            if (globalTimer % 200 < timeFactor) { 
+                spawnSun(Math.random() * (canvas.width - 200) + 100, -50, 50, true);
+            }
+
+            // 3. 僵尸生成逻辑 (重构核心)
+            // 计算当前的动态刷新间隔：基础间隔 - (击杀数 * 加速因子)
+            let dynamicInterval = levelConfig.spawnInterval - (gameState.zombiesKilled * 15);
+            dynamicInterval = Math.max(50, dynamicInterval); // 最快间隔不低于50帧(约0.8秒)
+
+            if (gameState.zombiesSpawned < levelConfig.goal) {
+                // 如果场上没有僵尸，强制立刻生成 (Min 1 规则)
+                if (zombies.length === 0) {
+                    gameState.zombieSpawnTimer = 0;
+                }
+
+                gameState.zombieSpawnTimer -= timeFactor;
+                
+                // 仅当场上僵尸少于10只时才生成 (Max 10 规则)
+                if (gameState.zombieSpawnTimer <= 0 && zombies.length < 10) {
+                    const type = pickZombieType(levelConfig.zombies);
+                    spawnZombie(type);
+                    gameState.zombiesSpawned++;
+                    
+                    // 重置倒计时：动态间隔 + 随机波动
+                    gameState.zombieSpawnTimer = dynamicInterval + Math.random() * 50;
+                }
+            } else if (zombies.length === 0) {
+                levelClear();
+            }
+
+            // 4. 扫帚逻辑
+            mowers.forEach(m => {
+                if (m.active) {
+                    m.x += 15 * timeFactor; 
+                    m.angle += 0.5 * timeFactor; 
+                    zombies.forEach(z => {
+                        if (z.row === m.row && Math.abs(z.x - m.x) < 50 && z.health > 0) {
+                            z.health = 0;
+                            createParticles(z.x, z.y, '#9c27b0', 15);
+                            gameState.zombiesKilled++;
+                        }
+                    });
+                }
+            });
+
+            // 5. 植物逻辑
+            plants.forEach(p => {
+                p.timer += timeFactor;
+                if (p.type === 'sunflower' && p.timer >= 600) {
+                    spawnSun(p.x + CELL_SIZE/2, p.y + CELL_SIZE/2, 25, false);
+                    p.timer = 0; p.scale = 1.2; 
+                }
+                if (p.scale > 1) p.scale = Math.max(1, p.scale - 0.02 * timeFactor);
+
+                if ((p.type === 'peashooter' || p.type === 'snowpea') && p.timer >= 90) {
+                    const hasZombie = zombies.some(z => z.row === p.row && z.x > p.x);
+                    if (hasZombie) {
+                        spawnProjectile(p.x + 60, p.y + 30, p.type);
+                        p.recoil = 5; p.timer = 0;
+                    } else {
+                        p.timer = 90;
+                    }
+                }
+                if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - 0.5 * timeFactor);
+            });
+
+            // 6. 子弹逻辑
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.x += p.speed * timeFactor; 
+                let hit = false;
+                for (let z of zombies) {
+                    if (p.row === z.row && p.x > z.x + 20 && p.x < z.x + 60 && z.health > 0) {
+                        z.health -= p.damage;
+                        z.hitEffect = 5;
+                        if (p.isSnow) {
+                            z.freezeTimer = 180; z.speed = z.baseSpeed * 0.5;
+                        }
+                        hit = true;
+                        createParticles(z.x + 40, z.y + 40, p.isSnow ? '#29b6f6' : '#607d8b', 3);
+                        break;
+                    }
+                }
+                if (hit || p.x > canvas.width) projectiles.splice(i, 1);
+            }
+
+            // 7. 僵尸逻辑
+            for (let i = zombies.length - 1; i >= 0; i--) {
+                let z = zombies[i];
+                if (z.freezeTimer > 0) {
+                    z.freezeTimer -= timeFactor;
+                    if (z.freezeTimer <= 0) z.speed = z.baseSpeed;
+                }
+                if (!z.isEating) z.x -= z.speed * timeFactor; 
+
+                // 扫帚触发
+                if (z.x < GRID_OFFSET_X - 20) {
+                    let mower = mowers[z.row];
+                    if (!mower.triggered) {
+                        mower.triggered = true; mower.active = true;
+                        showMessage("魔法扫帚启动!");
+                    } else if (!mower.active && z.x < -40) {
+                        gameOver();
+                    }
+                }
+                
+                // 吃植物
+                let eatingPlant = null;
+                for (let p of plants) {
+                    if (p.row === z.row && z.x < p.x + 50 && z.x > p.x - 20) {
+                        eatingPlant = p; break;
+                    }
+                }
+                if (eatingPlant) {
+                    z.isEating = true; z.biteTimer += timeFactor;
+                    if (z.biteTimer >= 30) {
+                        eatingPlant.health -= 20;
+                        createParticles(eatingPlant.x + 50, eatingPlant.y + 50, '#8bc34a', 2);
+                        z.biteTimer = 0;
+                    }
+                    if (eatingPlant.health <= 0) z.isEating = false;
+                } else {
+                    z.isEating = false;
+                }
+
+                if (z.hitEffect > 0) z.hitEffect -= timeFactor;
+
+                // 死亡逻辑
+                if (z.health <= 0) {
+                    zombies.splice(i, 1);
+                    gameState.zombiesKilled++;
+                    createParticles(z.x + 50, z.y + 50, '#555', 8);
+                    
+                    // 核心修改：死亡立即刷新下一只
+                    // 将倒计时清零，如果符合数量条件，下一帧就会生成
+                    gameState.zombieSpawnTimer = 0; 
+                }
+            }
+
+            // 清理植物
+            for (let i = plants.length - 1; i >= 0; i--) {
+                if (plants[i].health <= 0) plants.splice(i, 1);
+            }
+
+            // 阳光移动
+            for (let i = sunItems.length - 1; i >= 0; i--) {
+                let s = sunItems[i];
+                if (s.isFalling && s.y < s.targetY) s.y += 2 * timeFactor;
+                s.lifeTime += timeFactor;
+                if (s.lifeTime > 800) sunItems.splice(i, 1);
+            }
+            
+            // 粒子
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * timeFactor;
+                p.y += p.vy * timeFactor;
+                p.life -= timeFactor;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+
+            updateUI();
+        }
+
+        // --- 绘图 ---
+        function drawBackground() {
+            ctx.fillStyle = "#5d4037"; 
+            ctx.fillRect(0, 0, GRID_OFFSET_X, canvas.height);
+            ctx.fillStyle = "#3e2723";
+            ctx.fillRect(GRID_OFFSET_X - 4, 0, 4, canvas.height);
+            ctx.strokeStyle = "rgba(0,0,0,0.1)"; ctx.lineWidth = 1;
+            for (let row = 0; row < GRID_ROWS; row++) {
+                for (let col = 0; col < GRID_COLS; col++) {
+                    const x = col * CELL_SIZE + GRID_OFFSET_X;
+                    const y = row * CELL_SIZE;
+                    ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+                }
+            }
+        }
+
+        function drawScene() {
+            drawBackground();
+            mowers.forEach(m => {
+                if (!m.triggered || m.x < canvas.width) drawFancyBroom(m.x + 5, m.row * CELL_SIZE + 50, m.angle || 0);
+            });
+            plants.forEach(p => {
+                const cx = p.x + CELL_SIZE/2 + GRID_OFFSET_X;
+                const cy = p.y + CELL_SIZE/2;
+                drawShadow(cx, cy + 35);
+                ctx.save(); ctx.translate(cx, cy);
+                if (p.recoil) ctx.translate(-p.recoil, 0); 
+                if (p.scale) ctx.scale(p.scale, p.scale);
+                ctx.font = "60px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(p.icon, 0, 5);
+                if (p.type === 'wallnut') {
+                    if (p.health < 600) ctx.fillText("🤕", 0, 0); 
+                    else if (p.health < 1300) ctx.fillText("🩹", 15, -15);
+                }
+                ctx.restore();
+                if (p.health < PLANTS_INFO[p.type].health) drawHealthBar(p.x + GRID_OFFSET_X + 10, p.y + 10, 80, p.health, PLANTS_INFO[p.type].health);
+            });
+            zombies.forEach(z => {
+                const cx = z.x + GRID_OFFSET_X;
+                const cy = z.y;
+                drawShadow(cx + 50, cy + 90);
+                drawRefinedWitch(cx, cy, z);
+                drawHealthBar(cx + 15, cy, 70, z.health, ZOMBIES_INFO[z.type].hp);
+            });
+            projectiles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x + GRID_OFFSET_X, p.y + CELL_SIZE/2, 12, 0, Math.PI * 2); ctx.fill();
+                if (p.isSnow) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2; ctx.stroke(); }
+            });
+            sunItems.forEach(s => {
+                ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(globalTimer * 0.02);
+                ctx.shadowBlur = 15; ctx.shadowColor = "yellow";
+                ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText("☀️", 0, 0); ctx.restore();
+            });
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.life / 20); ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x + GRID_OFFSET_X, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        // --- 绘图组件 ---
+        function drawShadow(x, y) {
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
+            ctx.beginPath(); ctx.ellipse(x, y, 30, 8, 0, 0, Math.PI * 2); ctx.fill();
+        }
+
+        function drawFancyBroom(x, y, angle) {
+            ctx.save(); ctx.translate(x, y);
+            if (angle) ctx.rotate(angle);
+            const hover = Math.sin(globalTimer * 0.1) * 3; ctx.translate(0, hover);
+            ctx.shadowBlur = 15; ctx.shadowColor = "#e040fb";
+            const grad = ctx.createLinearGradient(0, 30, 40, -10);
+            grad.addColorStop(0, '#5d4037'); grad.addColorStop(1, '#8d6e63');
+            ctx.strokeStyle = grad; ctx.lineWidth = 8; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(50, -20); ctx.stroke();
+            ctx.fillStyle = "#ffb74d"; 
+            ctx.beginPath(); ctx.moveTo(0, 20); ctx.quadraticCurveTo(-15, 30, -20, 45); 
+            ctx.lineTo(10, 50); ctx.lineTo(15, 10); ctx.fill();
+            ctx.strokeStyle = "#d50000"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(12, 12); ctx.stroke();
+            ctx.fillStyle = "#f50057"; ctx.beginPath(); ctx.arc(25, 0, 6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(23, -2, 2, 0, Math.PI*2); ctx.fill(); 
+            if (angle > 0) {
+                ctx.fillStyle = "rgba(224, 64, 251, 0.5)"; ctx.beginPath();
+                ctx.moveTo(-20, 45); ctx.lineTo(-60, 40); ctx.lineTo(-20, 20); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawRefinedWitch(x, y, zombie) {
+            const size = CELL_SIZE; const cx = x + size/2; const cy = y + size/2;
+            const breathe = Math.sin(globalTimer * 0.05) * 2;
+            const walkWobble = Math.sin(globalTimer * 0.2) * 5;
+            ctx.save(); ctx.translate(cx, cy + breathe);
+            if (zombie.isEating) {
+                const bite = Math.sin(globalTimer * 0.5) * 5;
+                ctx.rotate(bite * 0.05); ctx.translate(bite, 0);
+            } else {
+                ctx.rotate(walkWobble * 0.02);
+            }
+            if (zombie.hitEffect > 0) {
+                ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'white';
+            }
+            if (zombie.freezeTimer > 0) {
+                ctx.filter = 'hue-rotate(180deg) brightness(1.2)';
+            }
+            ctx.fillStyle = '#7e57c2'; ctx.beginPath(); ctx.arc(0, -5, 30, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#311b92'; ctx.beginPath(); ctx.moveTo(-15, 10); ctx.lineTo(15, 10);
+            ctx.lineTo(20, 45); ctx.quadraticCurveTo(0, 50, -20, 45); ctx.fill();
+            ctx.fillStyle = '#e91e63'; ctx.beginPath(); ctx.arc(0, 15, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#c5e1a5'; ctx.beginPath(); ctx.ellipse(0, -10, 22, 20, 0, 0, Math.PI*2); ctx.fill();
+            let eyeOpen = 3; if (globalTimer % 120 > 110) eyeOpen = 0.5;
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(-8, -10, 6, eyeOpen+2, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#f44336'; ctx.beginPath(); ctx.arc(-8, -10, 2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(8, -10, 6, eyeOpen+2, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#2196f3'; ctx.beginPath(); ctx.arc(8, -10, 2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(233, 30, 99, 0.3)';
+            ctx.beginPath(); ctx.arc(-12, -2, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(12, -2, 4, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#558b2f'; ctx.lineWidth = 2; ctx.beginPath();
+            if (zombie.isEating) { ctx.arc(0, 2, 5, 0, Math.PI*2); } else { ctx.moveTo(-5, 5); ctx.lineTo(5, 5); }
+            ctx.stroke();
+            ctx.save(); ctx.rotate(Math.sin(globalTimer * 0.1) * 0.1);
+            if (zombie.hat === 'cone') {
+                ctx.fillStyle = '#ff9800'; ctx.beginPath(); ctx.moveTo(-15, -25); ctx.lineTo(15, -25); ctx.lineTo(0, -65); ctx.fill();
+                if (zombie.health < 200) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(5, -45); ctx.lineTo(15, -35); ctx.lineTo(10, -55); ctx.fill(); }
+            } else if (zombie.hat === 'bucket') {
+                ctx.fillStyle = '#bdbdbd'; ctx.beginPath(); ctx.moveTo(-16, -25); ctx.lineTo(16, -25); ctx.lineTo(14, -55); ctx.lineTo(-14, -55); ctx.fill();
+                ctx.strokeStyle = '#757575'; ctx.lineWidth = 2; ctx.strokeRect(-16, -55, 32, 5);
+                if (zombie.health < 400) { ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.arc(-5, -40, 5, 0, Math.PI*2); ctx.fill(); }
+            } else {
+                ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.ellipse(0, -28, 30, 6, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(-15, -28); ctx.lineTo(15, -28); ctx.quadraticCurveTo(10, -60, 20, -70);
+                ctx.lineTo(-5, -60); ctx.fill(); ctx.strokeStyle = '#9c27b0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-14, -30); ctx.lineTo(14, -30); ctx.stroke();
+            }
+            ctx.restore(); ctx.restore(); ctx.filter = 'none';
+        }
+
+        function drawHealthBar(x, y, w, current, max) {
+            ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x, y, w, 6);
+            let color = "#76ff03"; let pct = current/max;
+            if (pct < 0.5) color = "#ffeb3b"; if (pct < 0.25) color = "#ff1744";
+            ctx.fillStyle = color; ctx.fillRect(x+1, y+1, (w-2) * Math.max(0, pct), 4);
+        }
+
+        // --- 交互逻辑 ---
+        function selectPlant(type) {
+            if (cooldowns[type] > 0) { showMessage("冷却中..."); return; }
+            const info = PLANTS_INFO[type];
+            if (gameState.sun >= info.cost) {
+                if (selectedPlant === type) { selectedPlant = null; highlightCard(null); } 
+                else { selectedPlant = type; highlightCard(type); }
+            } else { showMessage("阳光不足!"); }
+        }
+
+        function handleCanvasClick(e) {
+            if (gameState.isGameOver || gameState.isLevelClear) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left; const clickY = e.clientY - rect.top;
+            for (let i = sunItems.length - 1; i >= 0; i--) {
+                let s = sunItems[i]; let dx = clickX - s.x; let dy = clickY - s.y;
+                if (dx*dx + dy*dy < 1600) { 
+                    gameState.sun += s.value; sunItems.splice(i, 1);
+                    createParticles(s.x, s.y, 'yellow', 5); updateUI(); return; 
+                }
+            }
+            if (clickX < GRID_OFFSET_X) return; 
+            const gridX = clickX - GRID_OFFSET_X;
+            const col = Math.floor(gridX / CELL_SIZE); const row = Math.floor(clickY / CELL_SIZE);
+            if (selectedPlant && col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS) {
+                const hasPlant = plants.some(p => p.col === col && p.row === row);
+                if (!hasPlant) {
+                    const info = PLANTS_INFO[selectedPlant];
+                    gameState.sun -= info.cost; cooldowns[selectedPlant] = info.cooldown;
+                    plants.push({
+                        type: selectedPlant, col: col, row: row, x: col * CELL_SIZE, y: row * CELL_SIZE,
+                        health: info.health, timer: 0, icon: info.icon, scale: 1, recoil: 0
+                    });
+                    createParticles(clickX, clickY, '#4caf50', 8);
+                    selectedPlant = null; highlightCard(null); updateUI();
+                } else { showMessage("这里不能种!"); }
+            }
+        }
+
+        // --- 辅助函数 ---
+        function pickZombieType(allowedTypes) {
+            let totalWeight = 0; let candidates = [];
+            allowedTypes.forEach(t => { let w = ZOMBIE_WEIGHTS[t] || 1; totalWeight += w; candidates.push({ type: t, weight: w }); });
+            let r = Math.random() * totalWeight;
+            for(let c of candidates) { if (r < c.weight) return c.type; r -= c.weight; }
+            return allowedTypes[0]; 
+        }
+
+        function spawnSun(x, y, value, isFalling) {
+            sunItems.push({ x: x, y: y, targetY: isFalling ? Math.random() * (canvas.height - 100) + 100 : y, value: value, isFalling: isFalling, lifeTime: 0 });
+        }
+
+        function spawnZombie(type) {
+            const row = Math.floor(Math.random() * GRID_ROWS);
+            const info = ZOMBIES_INFO[type];
+            zombies.push({ 
+                type: type, row: row, x: canvas.width, y: row * CELL_SIZE, 
+                health: info.hp, maxHp: info.hp, speed: info.speed + Math.random() * 0.1, 
+                baseSpeed: info.speed + Math.random() * 0.1, hat: info.hat,
+                isEating: false, biteTimer: 0, hitEffect: 0, freezeTimer: 0
+            });
+        }
+
+        function spawnProjectile(x, y, plantType) {
+            const row = Math.floor(y / CELL_SIZE);
+            const isSnow = plantType === 'snowpea';
+            projectiles.push({ x: x, y: y, row: row, speed: 7, damage: 20, isSnow: isSnow, color: isSnow ? '#29b6f6' : '#8bc34a' });
+        }
+
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) {
+                particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 30 + Math.random() * 10, color: color, size: Math.random() * 5 + 2 });
+            }
+        }
+
+        function highlightCard(type) {
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            if (type) { document.getElementById(`card-${type}`).classList.add('selected'); }
+        }
+
+        function updateUI() {
+            document.getElementById('sun-count').innerText = gameState.sun;
+            document.getElementById('current-level').innerText = gameState.levelIndex + 1;
+            const levelConfig = LEVELS[gameState.levelIndex];
+            const progress = Math.min(100, (gameState.zombiesKilled / levelConfig.goal) * 100);
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.querySelectorAll('.card').forEach(card => {
+                const id = card.id.replace('card-', '');
+                const cost = parseInt(card.querySelector('.card-cost').innerText);
+                const cooldown = cooldowns[id];
+                const maxCooldown = PLANTS_INFO[id].cooldown;
+                const mask = card.querySelector('.cooldown-mask');
+                if (cooldown > 0) {
+                    mask.style.height = `${(cooldown / maxCooldown) * 100}%`;
+                    card.classList.add('disabled');
+                } else {
+                    mask.style.height = '0%';
+                    if (gameState.sun < cost) { card.classList.add('disabled'); } else { card.classList.remove('disabled'); }
+                }
+            });
+        }
+
+        function showMessage(text) {
+            const msg = document.getElementById('message');
+            msg.innerText = text; msg.style.opacity = 1; msg.style.top = "40%";
+            setTimeout(() => { msg.style.opacity = 0; msg.style.top = "30%"; }, 1500);
+        }
+
+        function levelClear() {
+            gameState.isLevelClear = true; gameState.paused = true;
+            const msg = LEVELS[gameState.levelIndex].id === 3 ? "最终防线守住了!" : "邪恶的冰魔女已被击退...";
+            document.getElementById('level-clear-msg').innerText = msg;
+            document.getElementById('level-clear-screen').style.display = 'flex';
+        }
+
+        function gameOver() {
+            gameState.isGameOver = true; gameState.paused = true;
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
